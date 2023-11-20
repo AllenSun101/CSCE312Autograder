@@ -9,4 +9,5 @@ Terminal 1:
 - npm run dev
 
 Terminal 2:
+- cd backend
 - flask --app app.py --debug run
