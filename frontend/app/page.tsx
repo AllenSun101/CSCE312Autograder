@@ -10,10 +10,10 @@ export default function Home() {
 	const [files, setFiles] = useState([]);
 	const [isPopupOpen, setPopupOpen] = useState(false);
 
-	const [tests, setTests] : any = useState("Hi");
+	const [tests, setTests] = useState([]);
 
-	var passedCases = 5;
-	var totalCases = 10;
+	const [globalError, setGlobalError] = useState(false);
+	const [globalErrorMessage, setGlobalErrorMessage] = useState("");
 
 	const handleFileChange = (event: any) => {
 		const files: any = Array.from(event.target.files);
@@ -29,24 +29,48 @@ export default function Home() {
 		setFiles([]);
 	};
 
-	const submitPopup = (event: any) => {		
+	const submitPopup = (event: any) => {
 		setPopupOpen(false);
+
 		// send files and fetch results
-		// mutation.mutate({ files: files });
-		mutation.mutate({course: "LOL"}, {
+		mutation.mutate({ files: files }, {
 			onSuccess: (data) => {
-				setTests(data.data);
+				// check for global error and don't render results
+				if (data.data[0]["Global Error"]) {
+					setGlobalError(true);
+					setGlobalErrorMessage(data.data[0]["Global Error"]);
+				}
+				else {
+					setGlobalError(false);
+					setTests(data.data);
+				}
+				setFiles([]);
 			}
 		})
-		setFiles([]);
 	}
-	
 
+	// send request to backend and fetch data
 	const mutation = useMutation({
 		mutationFn: (params: any) => {
-			return axios.get(`http://localhost:5000/Search_Fetch/${params.course}`);
+			return axios.post(`http://localhost:5000/`, params, {
+				headers: {
+					'Content-Type': 'multipart/form-data',
+				},
+			});
 		},
 	})
+
+
+	// calculate passed test cases
+	function passedCases() {
+		var count = 0;
+		tests.forEach((item: any) => {
+			if (item.Expected !== undefined && item.Output !== undefined && item.Expected === item.Output) {
+				count++;
+			}
+		});
+		return count;
+	}
 
 
 	return (
@@ -54,52 +78,56 @@ export default function Home() {
 			<div className="flex h-[90vh] b-white">
 				<div className="flex-1 flex flex-col overflow-hidden">
 					<div className="flex h-full">
+
+
 						<main className="flex flex-col w-full bg-white overflow-x-hidden overflow-y-auto">
 							<p className='pt-8 px-8 text-lg font-semibold leading-snug'>Results</p>
 							<div className="flex w-full mx-auto px-8 py-8">
 								<div className="flex flex-col w-full h-full border-2">
-									{mutation.status === 'pending' && <p className='text-center text-lg'>Autograder is running tests...</p>}
-									{mutation.status === 'success' && <p>Yipee... : {tests}</p>}
-									{mutation.status === 'error' && <p>{mutation.error.message}</p>}
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-4'>Test 1: FAIL</p>
-										<p className='mx-6'>Input 1: 1</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-4'>Test 1: FAIL</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-4'>Test 1: FAIL</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-4'>Test 1: FAIL</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-1'>Test 1:</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-1'>Test 1:</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
-									<div className="mx-6 py-6 border-b">
-										<p className='text-lg mb-1'>Test 1:</p>
-										<p className='mx-6'>Expected Output: 1</p>
-										<p className='mx-6'>Output: 0</p>
-									</div>
+									{mutation.status === 'pending' &&
+										<div>
+											<p className='text-center text-2xl py-24'>Autograder is running tests...</p>
+											<p className='text-center text-xl pb-12'>Autograder go brrrrrrrr</p>
+										</div>
+									}
+									{mutation.status === 'success' &&
+										<div>
+											{globalError ? <p className='text-2xl text-center py-24'> Error: {globalErrorMessage} </p> : <div>
+												{tests.map((item: any, index: any) => (
+													<div key={index} className="mx-6 py-6 border-b">
+														<div className='mb-4'>
+															<span className='text-lg'> Test {index + 1}: </span>{item.Expected !== undefined && item.Output !== undefined && item.Expected === item.Output ? <span className='text-lg mb-4 text-green-700'> PASS</span> : <span className='text-lg mb-4 text-red-700'> FAIL </span>}
+														</div>
+														{Object.keys(item)
+															.sort((a, b) => {
+																if (a.includes("Input") && !b.includes("Input")) return -1;
+																if (b.includes("Input") && !a.includes("Input")) return 1;
+																if (a === "Expected" && b !== "Output") return -1;
+																if (b === "Expected" && a !== "Output") return 1;
+																if (a === "Output" && b !== "Expected") return -1;
+																if (b === "Output" && a !== "Expected") return 1;
+																return 0;
+															})
+															.map((key) => (
+																<p key={key} className='mx-6'>
+																	{key}: {item[key]}
+																</p>
+															))}
+													</div>
+												))}
+
+											</div>
+
+											}
+
+										</div>
+
+									}
 								</div>
 							</div>
 						</main>
+
+
 						<div className="overflow-y-auto relative flex flex-col bg-clip-border bg-gray-100 h-[100vh] w-full max-w-[25rem] p-4 shadow-xl shadow-blue-gray-900/5">
 
 							<div className="mb-2 p-4">
@@ -107,22 +135,32 @@ export default function Home() {
 							</div>
 							<nav className="flex flex-col gap-1 min-w-[240px] p-2 font-sans text-base font-normal text-gray-700">
 								<p className='mt-6'>Autograder Score:</p>
-								<p className='mb-6'>{passedCases} / {totalCases} cases passed.</p>
-								<p className='text-green-700'>Test 1: Pass</p>
-								<p className='text-red-700'>Test 2: Fail</p>
-								<p>Test 3: Pass</p>
-								<p>Test 4: Pass</p>
-								<p>Test 5: Pass</p>
-
+								<div>
+									{
+										globalError ? <p>Error</p> : <div>
+											<p className='mb-6'>{passedCases()} / {tests.length} cases passed.</p>
+											{tests.map((item: any, index: any) => (
+												<div key={index} className="">
+													{item.Expected !== undefined && item.Output !== undefined && item.Expected === item.Output ? <p className='text-green-700'> Test {index + 1} : Pass</p> : <p className='text-red-700'>  Test {index + 1} : Fail </p>}
+												</div>
+											))}
+										</div>
+									}
+								</div>
 							</nav>
 						</div>
+
+
 					</div>
 				</div>
 			</div>
+
+
 			<div className="bg-gray-100 flex items-center justify-end py-5">
-				<p className='px-4'>Submit all .hdl/.asm files and dependencies, and the .cmp file.</p>
+				<p className='px-4'>Submit all .hdl/.asm files and dependencies, the .tst file, and the .cmp file.</p>
 				<button className="rounded-md bg-black text-white font-bold py-2 px-4 mx-6" onClick={openPopup}>Submit Files</button>
 			</div>
+
 
 			{isPopupOpen && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30">
@@ -130,7 +168,7 @@ export default function Home() {
 						<button onClick={closePopup} className="float-right text-gray-700 hover:text-gray-900">
 							&times;
 						</button>
-						<p className='mb-6'>Include the required .hdl/.asm files and all dependencies, as well as the .cmp file.</p>
+						<p className='mb-6'>Include the required .hdl/.asm files and all dependencies, as well as the .tst and .cmp files.</p>
 						<input
 							onChange={handleFileChange}
 							className='mb-6'
@@ -151,6 +189,8 @@ export default function Home() {
 					</div>
 				</div>
 			)}
+
+
 		</div>
 	)
 }
